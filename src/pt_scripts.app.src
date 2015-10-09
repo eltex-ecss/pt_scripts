@@ -1,0 +1,10 @@
+{application,pt_scripts,
+ [{description,"Parse transform scripts library"},
+  {id,"pt_scripts"},
+  {modules,[]},
+  {registered,[]},
+  {applications,[kernel,stdlib,syntax_tools,compiler,pt_lib]},
+  {env,[]},
+  {vsn,git}
+ ]
+}.
