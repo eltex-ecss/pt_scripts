@@ -1,0 +1,5 @@
+.rebar
+.eunit
+*.app
+*.beam
+deps
