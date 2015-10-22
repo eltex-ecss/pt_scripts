@@ -23,12 +23,14 @@ parse_transform(AST, _Options) ->
         pt_lib:replace_fold(AST, {ast_pattern("$F[...$Clauses...]."), Acc},
             begin
                 {NewClauses, NewF} = process_clauses(F, lists:reverse(Clauses), {0, [], []}),
-                {ast("$F[...$NewClauses...].",0), NewF ++ Acc}
+                [{_, Line, _, _, _} | _] = NewClauses,
+                {ast("$F[...$NewClauses...].",Line), NewF ++ Acc}
             end, []),
 
         lists:foldl(
             fun ({FF, FFClauses}, NewASTAcc) ->
-                pt_lib:add_function(NewASTAcc, ast("$FF[...$FFClauses...].", 0))
+                [{_, Line, _, _, _} | _] = FFClauses,
+                pt_lib:add_local_function(NewASTAcc, ast("$FF[...$FFClauses...].", Line))
             end, NewAST, NewFunctions)
 
    catch
@@ -42,7 +44,6 @@ parse_transform(AST, _Options) ->
             pt_supp:print_error(AST, Error),
             exit(Error)
     end.
-
 
 process_clauses(_F, [], {_, Clauses, NewF}) -> {Clauses, NewF};
 process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body... .",  Line) = Clause|T], {N, ProcessedClauses, NewFunctions}) ->
@@ -74,7 +75,6 @@ process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body.
 
             process_clauses(F, T, {NewN, [NewClause, NextClause], [{FN, NewFunctionClauses}|NewFunctions]})
     end.
-
 
 process_guards(Guards, N) ->
     {NewGuards, NeedProcess} = lists:foldr(
