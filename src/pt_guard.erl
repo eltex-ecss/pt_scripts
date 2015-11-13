@@ -73,15 +73,13 @@ process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body.
 
             NewClause = ast("(...$NewParamsPatterns...) -> ...$NewBody... .", Line),
 
-            NextClause = ast("(...$NewParamsValues...) -> @FN(...$NewParamsValues...).", 0),
-
             NewFunctionClauses =
                 case ProcessedClauses of
                     [] -> [ast("(...$Params...) when true == false -> never_happen.", 0)];
                     _  -> ProcessedClauses
                 end,
 
-            process_clauses(F, T, {NewN, [NewClause, NextClause], [{FN, NewFunctionClauses}|NewFunctions]})
+            process_clauses(F, T, {NewN, [NewClause], [{FN, NewFunctionClauses}|NewFunctions]})
     end.
 
 change_guard([[{call, _, {atom, _, pt_guard}, Return_guards}]]) ->
@@ -94,8 +92,8 @@ process_guards(Guards, N) ->
             fun (Guard, NP) ->
                 {_, NP2} =
                     pt_lib:replace_fold(Guard,
-                        {ast_pattern("pt_guard(...$_...).", _), _},
-                        {[], true}, false),
+                        {ast_pattern("pt_guard(...$_...).", Line), _},
+                        {ast("[].", Line), true}, false),
                 case NP2 of
                     true  -> true;
                     false -> NP
