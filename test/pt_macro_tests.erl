@@ -14,6 +14,5 @@ pt_macro_test_() ->
     [
         ?_test('pt_macro_test_/0' = ?FUNC),
         ?_test(pt_macro_test_ = ?FUNC_NAME),
-        ?_test("pt_macro_test_/0" = ?FUNC_STRING),
-        ?_test(2 =:= pt_lib_tests:?FUNC_NAME(1))
+        ?_test("pt_macro_test_/0" = ?FUNC_STRING)
     ].

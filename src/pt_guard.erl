@@ -1,16 +1,25 @@
 %%%-------------------------------------------------------------------
 %%% -*- coding: utf-8 -*-
-%%% @author Timofey Barmin
+%%% @author Nikita Roshchupkin, Timofey Barmin,
 %%% @copyright (C) 2015, Eltex, Novosibirsk, Russia
 %%% @doc
 %%%
-%%%     Allow you to use lists:member in guard tests.
+%%%     Allow you to use any function in guard tests.
+%%%     Example:
+%%%         NameFunction(...$Params...) ->
+%%%             case ...$Params... of
+%%%                 return_true ->
+%%%                     true;
+%%%                 rest_of_it ->
+%%%                     false
+%%%             end
+%%%         handle_call(...) when pt_guard(NameFunction(...$Params...))
 %%%
-%%%     simply creates new function, calls lists:member and call user's function when succ
+%%%     simply creates new function, calls new function and call user's function when succ
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
--module(pt_fun_guards).
+-module(pt_guard).
 
 -include_lib("pt_lib/include/pt_lib.hrl").
 -include_lib("pt_lib/include/pt_error_macro.hrl").
@@ -47,7 +56,7 @@ parse_transform(AST, _Options) ->
 
 process_clauses(_F, [], {_, Clauses, NewF}) -> {Clauses, NewF};
 process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body... .",  Line) = Clause|T], {N, ProcessedClauses, NewFunctions}) ->
-    {NewN, NewGuards, NeedProcess} = process_guards(Guards, N),
+    {NewN, NeedProcess} = process_guards(Guards, N),
     case NeedProcess of
         false -> process_clauses(F, T, {NewN, [Clause|ProcessedClauses], NewFunctions});
         true  ->
@@ -58,14 +67,11 @@ process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body.
                     {{ast("$Var = $Param.", 0), Var}, K + 1}
                 end, 0, Params),
             {NewParamsPatterns, NewParamsValues} = lists:unzip(P),
+            Guards2 = change_guard(Guards),
+            GuardCheck = zip_guards(Guards2),
+            NewBody = [ast("case $GuardCheck of true  -> ...$Body... ; _ -> @FN(...$NewParamsValues...) end.", Line)],
 
-            GuardCheck = zip_guards(Guards),
-
-            NewBody = [ast("case $GuardCheck of true  -> ...$Body... ; false -> @FN(...$NewParamsValues...) end.", Line)],
-
-            NewClause = ast("(...$NewParamsPatterns...) when ...$NewGuards... -> ...$NewBody... .", Line),
-
-            NextClause = ast("(...$NewParamsValues...) -> @FN(...$NewParamsValues...).", 0),
+            NewClause = ast("(...$NewParamsPatterns...) -> ...$NewBody... .", Line),
 
             NewFunctionClauses =
                 case ProcessedClauses of
@@ -73,25 +79,30 @@ process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body.
                     _  -> ProcessedClauses
                 end,
 
-            process_clauses(F, T, {NewN, [NewClause, NextClause], [{FN, NewFunctionClauses}|NewFunctions]})
+            process_clauses(F, T, {NewN, [NewClause], [{FN, NewFunctionClauses}|NewFunctions]})
     end.
 
+change_guard([[{call, _, {atom, _, pt_guard}, Return_guards}]]) ->
+    [Return_guards];
+change_guard(Guards) ->
+    Guards.
+
 process_guards(Guards, N) ->
-    {NewGuards, NeedProcess} = lists:foldr(
-            fun (Guard, {Acc, NP}) ->
-                {NewGuard, NP2} =
+    NeedProcess = lists:foldr(
+            fun (Guard, NP) ->
+                {_, NP2} =
                     pt_lib:replace_fold(Guard,
-                        {ast_pattern("lists:member($_, $L).", Line), _},
-                        {ast("is_list($L).", Line), true}, false),
+                        {ast_pattern("pt_guard(...$_...).", Line), _},
+                        {ast("[].", Line), true}, false),
                 case NP2 of
-                    true  -> {[NewGuard|Acc], true};
-                    false -> {[NewGuard|Acc], NP}
+                    true  -> true;
+                    false -> NP
                 end
-            end, {[], false}, Guards),
+            end, false, Guards),
 
     case NeedProcess of
-        true  -> {N + 1, NewGuards, NeedProcess};
-        false -> {N,     NewGuards, NeedProcess}
+        true  -> {N + 1, NeedProcess};
+        false -> {N,     NeedProcess}
     end.
 
 zip_guards([Guard]) ->
