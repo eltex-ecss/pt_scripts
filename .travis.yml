@@ -1,5 +1,8 @@
 language: erlang
-script: "rebar -V"
+before_install:
+    - wget https://github.com/rebar/rebar/releases/download/2.6.1/rebar
+    - chmod +x rebar
+script: "./rebar -V"
 otp_release:
     - R16B03-1
     - 17.5
