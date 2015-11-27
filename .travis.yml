@@ -1,4 +1,5 @@
 language: erlang
+script: "rebar -v"
 otp_release:
     - R16B03-1
     - 17.5
