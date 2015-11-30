@@ -2,7 +2,6 @@ language: erlang
 before_install:
     - wget https://github.com/rebar/rebar/releases/download/2.6.1/rebar
     - chmod +x rebar
-script: "./rebar -V get-deps compile skip_deps=true eunit"
 script: "./rebar get-deps compile skip_deps=true eunit"
 otp_release:
     - R16B03-1
