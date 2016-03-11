@@ -1,13 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% -*- coding: utf-8 -*-
-%%% @author Timofey Barmin
+%%% @author Nikita Roshchupkin, Timofey Barmin
 %%% @copyright (C) 2015, Eltex, Novosibirsk, Russia
 %%% @doc
-%%%
 %%%     Allow you to use lists:member in guard tests.
-%%%
-%%%     simply creates new function, calls lists:member and call user's function when succ
-%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(pt_fun_guards).
@@ -58,38 +54,36 @@ process_clauses(F, [ast_pattern("(...$Params...) when ...$Guards... -> ...$Body.
                     {{ast("$Var = $Param.", 0), Var}, K + 1}
                 end, 0, Params),
             {NewParamsPatterns, NewParamsValues} = lists:unzip(P),
-
             GuardCheck = zip_guards(Guards),
-
             NewBody = [ast("case $GuardCheck of true  -> ...$Body... ; false -> @FN(...$NewParamsValues...) end.", Line)],
-
             NewClause = ast("(...$NewParamsPatterns...) when ...$NewGuards... -> ...$NewBody... .", Line),
-
             NextClause = ast("(...$NewParamsValues...) -> @FN(...$NewParamsValues...).", 0),
-
             NewFunctionClauses =
                 case ProcessedClauses of
                     [] -> [ast("(...$Params...) when true == false -> never_happen.", 0)];
                     _  -> ProcessedClauses
                 end,
-
-            process_clauses(F, T, {NewN, [NewClause, NextClause], [{FN, NewFunctionClauses}|NewFunctions]})
+            process_clauses(F, T, {NewN, [NewClause, NextClause], [{FN, NewFunctionClauses}|NewFunctions]});
+        unrolling_list_member ->
+             NewClause =
+                ast("(...$Params...) when ...$NewGuards... -> ...$Body... .", Line),
+             process_clauses(F, T, {NewN, [NewClause|ProcessedClauses], NewFunctions})
     end.
 
 process_guards(Guards, N) ->
-    {NewGuards, NeedProcess} = lists:foldr(
-            fun (Guard, {Acc, NP}) ->
-                {NewGuard, NP2} =
-                    pt_lib:replace_fold(Guard,
-                        {ast_pattern("lists:member($_, $L).", Line), _},
-                        {ast("is_list($L).", Line), true}, false),
-                case NP2 of
-                    true  -> {[NewGuard|Acc], true};
-                    false -> {[NewGuard|Acc], NP}
-                end
-            end, {[], false}, Guards),
-
+    ListPatterns = cut_title(pt_lib:match(Guards,
+        ast_pattern("lists:member(_, _).")), []),
+    ListBool = lists:map(
+        fun(Acc) -> check_const_list(Acc, true) end, ListPatterns),
+    {NewGuards, NeedProcess} =
+        case proplists:is_defined(false, ListBool) of
+            false ->
+                unrolling_list(Guards);
+            true ->
+                replace_list(Guards)
+        end,
     case NeedProcess of
+        unrolling_list_member -> {N, NewGuards, NeedProcess};
         true  -> {N + 1, NewGuards, NeedProcess};
         false -> {N,     NewGuards, NeedProcess}
     end.
@@ -113,3 +107,80 @@ zip_guard([Guard|T]) ->
 
 format_error(Unknown) ->
     io_lib:format("Unknown error: ~p", [Unknown]).
+
+cut_title([{_, _, {remote,_,{_,_,lists},
+        {_,_,member}}, [_ | TailVars]} | TailListPatterns], Acc) ->
+    cut_title(TailListPatterns, [TailVars | Acc]);
+cut_title(_, Acc) ->
+    Acc.
+
+check_const({Type, _, _, _}, _) when Type =:= var orelse Type =:= call ->
+    false;
+check_const({Type, _, _}, _) when Type =:= var orelse Type =:= call ->
+    false;
+check_const({_, _, Vars, Tail}, true) when is_list(Vars) ->
+    Flag = check_const_list(Vars, true),
+    check_const(Tail, Flag);
+check_const({_, _, Vars, Tail}, true) ->
+    Flag = check_const(Vars, true),
+    check_const(Tail, Flag);
+check_const({_, _, Vars}, true) when is_list(Vars) ->
+    check_const_list(Vars, true);
+check_const({_, _, Vars}, true) ->
+    check_const(Vars, true);
+check_const(_, false) ->
+    false;
+check_const(_, _) ->
+    true.
+
+check_const_list([Var | Tail], true) ->
+    io:format("~n~p~n", [Var]),
+    Flag = check_const(Var, true),
+    check_const_list(Tail, Flag);
+check_const_list(_, false) ->
+    false;
+check_const_list(_, _) ->
+    true.
+
+const_expression({_a, _b, Var}, [Head | Tail], Acc) when Tail =/= [] ->
+    IOList = io_lib:format("~s =:= ~p orelse ", [atom_to_list(Var), Head]),
+    FlatList = lists:flatten(IOList),
+    const_expression({_a, _b, Var}, Tail, Acc ++ FlatList);
+const_expression({_a, _b, Var}, [Head | Tail], Acc) ->
+    IOList = io_lib:format("~s =:= ~p.", [atom_to_list(Var), Head]),
+    FlatList = lists:flatten(IOList),
+    const_expression({_a, _b, Var}, Tail, Acc ++ FlatList);
+const_expression(_, [], Acc) ->
+    Acc.
+
+unrolling_list(Guards) ->
+    lists:foldr(
+        fun (Guard, {Acc, NP}) ->
+            {NewGuard, NP2} =
+                pt_lib:replace_fold(Guard,
+                    {ast_pattern("lists:member($Var, $ListAst).", Line), _},
+                    begin
+                        {value, ValueList, _Bs} =
+                            erl_eval:exprs([ListAst], erl_eval:new_bindings()),
+                        String = const_expression(Var, ValueList, []),
+                        [Ast] = pt_lib:str2ast(String, Line),
+                        {Ast, true}
+                    end, false),
+                case NP2 of
+                    true  -> {[NewGuard|Acc], unrolling_list_member};
+                    false -> {[NewGuard|Acc], NP}
+                end
+        end, {[], false}, Guards).
+
+replace_list(Guards) ->
+    lists:foldr(
+        fun (Guard, {Acc, NP}) ->
+            {NewGuard, NP2} =
+                pt_lib:replace_fold(Guard,
+                    {ast_pattern("lists:member($_, $L).", Line), _},
+                    {ast("is_list($L).", Line), true}, false),
+                case NP2 of
+                    true  -> {[NewGuard|Acc], true};
+                    false -> {[NewGuard|Acc], NP}
+                end
+        end, {[], false}, Guards).
