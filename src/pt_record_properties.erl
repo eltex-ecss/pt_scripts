@@ -42,7 +42,7 @@ parse_transform(AST, _Options) ->
     Function = lists:foldl(
         fun({RecName, RecInfo}, AccFunctions) ->
                 RecType = proplists:get_value(RecName, Types, []),
-                RecFields = parse_record(RecName, RecType, RecInfo),
+                RecFields = parse_record(RecType, RecInfo),
                 Clause = io_lib:fwrite("properties(~p) -> ~w", [RecName, RecFields]),
                 [ lists:flatten(Clause) | AccFunctions];
            (_, Acc) -> Acc
@@ -55,21 +55,18 @@ parse_transform(AST, _Options) ->
 format_error(Error) ->
     io:format("Error: ~p~n", [Error]).
 
-parse_record(RecName, RecType, RecInfo) ->
-    RecNameStr = atom_to_list(RecName) ++ "|",
-    parse_record(RecNameStr, RecType, RecInfo, []).
+parse_record(RecType, RecInfo) ->
+    parse_record(RecType, RecInfo, []).
 
-parse_record(RecName, RecType, [{record_field, _, {atom, _, Name}} | Tile], Acc) ->
+parse_record(RecType, [{record_field, _, {atom, _, Name}} | Tile], Acc) ->
     Type = get_type(Name, RecType),
-    parse_record(RecName, RecType, Tile,
-                 [{RecName ++ atom_to_list(Name), Type} | Acc]);
-parse_record(RecName, RecType, [{record_field, _, {atom, _, Name}, _} | Tile], Acc) ->
+    parse_record(RecType, Tile, [{Name, Type} | Acc]);
+parse_record(RecType, [{record_field, _, {atom, _, Name}, _} | Tile], Acc) ->
     Type = get_type(Name, RecType),
-    parse_record(RecName, RecType, Tile,
-                 [{RecName ++ atom_to_list(Name), Type} | Acc]);
-parse_record(RecName, RecType, [_ | Tile], Acc) ->
-    parse_record(RecName, RecType, Tile, Acc);
-parse_record(_, _, [], Acc) -> Acc.
+    parse_record(RecType, Tile, [{Name, Type} | Acc]);
+parse_record(RecType, [_ | Tile], Acc) ->
+    parse_record(RecType, Tile, Acc);
+parse_record(_, [], Acc) -> Acc.
 
 get_type(Name, [{typed_record_field, {record_field, _, {atom, _, Name}, _},
                  {type, _, Type = list, [{type, _, record, _}]}} | _]) ->
