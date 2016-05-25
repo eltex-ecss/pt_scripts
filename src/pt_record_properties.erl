@@ -56,7 +56,7 @@ format_error(Error) ->
     io:format("Error: ~p~n", [Error]).
 
 parse_record(RecType, RecInfo) ->
-    parse_record(RecType, RecInfo, []).
+    lists:reverse(parse_record(RecType, RecInfo, [])).
 
 parse_record(RecType, [{record_field, _, {atom, _, Name}} | Tile], Acc) ->
     Type = get_type(Name, RecType),
@@ -69,8 +69,9 @@ parse_record(RecType, [_ | Tile], Acc) ->
 parse_record(_, [], Acc) -> Acc.
 
 get_type(Name, [{typed_record_field, {record_field, _, {atom, _, Name}, _},
-                 {type, _, Type = list, [{type, _, record, _}]}} | _]) ->
-    {Type, record};
+                 {type, _, Type = list, [{type, _, record,
+                                          [{atom, _, RName}]}]}} | _]) ->
+    {Type, record, RName};
 get_type(Name, [{typed_record_field, {record_field, _, {atom, _, Name}, _},
                  {type, _, Type, _}} | _]) ->
     Type;

@@ -1,0 +1,1 @@
+-compile({parse_transform, pt_record_properties}).
