@@ -2,6 +2,7 @@
 [![Build Status](https://travis-ci.org/eltex-ecss/pt_scripts.svg?branch=master)](https://travis-ci.org/eltex-ecss/pt_scripts)
 
 ## Includes:
+* pt_const_fun.erl    - replaces the function with constant data on the results of their work
 * pt_build_info.erl   - add get_info() returned git info for build project
 * pt_fabric.erl       - parametrized modules
 * pt_fun_guards.erl   - allow lists:member in guards test
