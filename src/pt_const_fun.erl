@@ -57,7 +57,12 @@ parse_transform(AST, _) ->
                 Data = Module:NameCall(),
                 {AST4, _} = create_new_ast(Data, AST),
                 true = code:delete(Module),
-                AST4;
+                case compile:forms(AST4, [return_warnings]) of
+                    {ok, _, _, [{_, Warning}]} ->
+                        delete_unused_functions(Warning, AST4);
+                    _ ->
+                        AST4
+                end;
             Er ->
                 throw(?mk_parse_error(0, {dynamic_data, {error, compile_and_load}})),
                 AST
@@ -70,6 +75,21 @@ parse_transform(AST, _) ->
             io_lib:format("~ts: Warning: can not compile", [FullFile]),
             AST
     end.
+
+delete_unused_functions([{_, _, {unused_function, {Name, CountArg}}} | TailWarning], AST) ->
+    NewAST = delete_unused_function(AST, {Name, CountArg}, []),
+    delete_unused_functions(TailWarning, NewAST);
+delete_unused_functions([_ | TailWarning], AST) ->
+    delete_unused_functions(TailWarning, AST);
+delete_unused_functions(_, AST) ->
+    AST.
+
+delete_unused_function([{function, _, Name, CountArg, _} | TailAST], {Name, CountArg}, Acc) ->
+    delete_unused_function(TailAST, {Name, CountArg}, Acc);
+delete_unused_function([HeadAST | TailAST], {Name, CountArg}, Acc) ->
+    delete_unused_function(TailAST, {Name, CountArg}, [HeadAST | Acc]);
+delete_unused_function(_, _, Acc) ->
+    lists:reverse(Acc).
 
 replace_const_fun([HeadAST | TailAST], Timeout) ->
     {NewHeadAST, _} = pt_lib:replace_fold(HeadAST, [
