@@ -63,7 +63,7 @@ parse_transform(AST, _) ->
                     _ ->
                         AST4
                 end;
-            Er ->
+            _Er ->
                 throw(?mk_parse_error(0, {dynamic_data, {error, compile_and_load}})),
                 AST
         end
