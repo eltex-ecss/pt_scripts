@@ -1,6 +1,8 @@
 language: erlang
 before_install:
     - wget -q https://github.com/rebar/rebar/releases/download/2.6.1/rebar && chmod +x rebar
+    - sudo apt-get update -qq
+    - sudo apt-get install -qq git
 script:
     - ./rebar --version
     - echo -e "\n\n"
