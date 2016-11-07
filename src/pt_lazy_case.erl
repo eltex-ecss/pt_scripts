@@ -211,12 +211,20 @@ count_clause([{_, {Type, Guard1}, Elem} = AccElem | TailElem], Acc) ->
     NewData1 = replace_line_ast(Elem),
     NewGuard1 = replace_line_ast(Guard1),
     F1 = fun
-        ({Ind, {_, Guard2}, {var, _, _}}) ->
+        ({Ind, {_, Guard2}, {var, _, _} = Data2}) ->
+            NewData2 = replace_line_ast(Data2),
             NewGuard2 = replace_line_ast(Guard2),
-            case NewGuard1 =:= NewGuard2 of
-                true ->
+            case {NewGuard1 =:= NewGuard2, NewData2 =:= NewData1} of
+                {true, true} ->
                     {true, Ind};
-                false ->
+                {true, false} ->
+                    case {NewData1, NewData2} of
+                        {{var, _, _}, {var, _, _}} ->
+                            {true, Ind};
+                        _ ->
+                            false
+                    end;
+                _ ->
                     case Type of
                         guard -> false;
                         tuple -> {true, Ind}
@@ -228,6 +236,13 @@ count_clause([{_, {Type, Guard1}, Elem} = AccElem | TailElem], Acc) ->
             case {NewGuard1 =:= NewGuard2, NewData2 =:= NewData1} of
                 {true, true} ->
                     {true, Ind};
+                {true, false} ->
+                    case {NewData1, NewData2} of
+                        {{var, _, _}, {var, _, _}} ->
+                            {true, Ind};
+                        _ ->
+                            false
+                    end;
                 _ ->
                     false
             end
@@ -239,6 +254,13 @@ count_clause([{_, {Type, Guard1}, Elem} = AccElem | TailElem], Acc) ->
             case {NewGuard1 =:= NewGuard2, NewData2 =:= NewData1} of
                 {true, true} ->
                     false;
+                {true, false} ->
+                    case {NewData1, NewData2} of
+                        {{var, _, _}, {var, _, _}} ->
+                            false;
+                        _ ->
+                            {true, ASTData}
+                    end;
                 _ ->
                     {true, ASTData}
             end
@@ -284,6 +306,13 @@ delete_repeate([{clause, _, Data1, Guard1, _} = HeadASTClause | TailASTClause], 
         case {NewGuard2 =:= NewGuard1, NewData2 =:= NewData1} of
             {true, true} ->
                 false;
+            {true, false} ->
+                case {NewData1, NewData2} of
+                    {{var, _, _}, {var, _, _}} ->
+                        false;
+                    _ ->
+                        {true, ASTClause}
+                end;
             _ ->
                 {true, ASTClause}
         end
