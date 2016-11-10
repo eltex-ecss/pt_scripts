@@ -10,7 +10,6 @@
 -module(pt_lazy_case_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--compile({parse_transform, pt_fun_guards}).
 -compile({parse_transform, pt_lazy_case}).
 
 pt_lazy_case_test_() ->
@@ -19,7 +18,8 @@ pt_lazy_case_test_() ->
         ?_test(ok = lazy_case_test2()),
         ?_test(ok = lazy_case_test3()),
         ?_test(ok = lazy_case_test4()),
-        ?_test(ok = lazy_case_test5())
+        ?_test(ok = lazy_case_test5()),
+        ?_test(ok = lazy_case_test6())
     ].
 
 lazy_case_test1() ->
@@ -99,4 +99,13 @@ lazy_case_test5() ->
            {[], _V2,  _,  _} -> ?assert(false);
            {_V1,  _,  _,  _} -> ?assert(false)
        end,
+    X.
+
+lazy_case_test6() ->
+    '@lazy_case',
+    X =
+        case {[], []} of
+           {[], _V} -> ok;
+           {_V, _} -> ?assert(false)
+        end,
     X.

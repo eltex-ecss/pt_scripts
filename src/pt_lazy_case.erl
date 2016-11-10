@@ -300,9 +300,9 @@ check_guard(Guard, _, Acc) ->
 
     {true, [Guard | Acc]}.
 
-check_load_code({'case', _, _, [{clause, _, [{var, _, '_'}], _, D3} | _]}) ->
+check_load_code({'case', _, _, [{clause, _, [{var, _, _}], _, D3} | _]}) ->
     {true, D3};
-check_load_code([{clause, _, [{var, _, '_'}], _, D3} | _]) ->
+check_load_code([{clause, _, [{var, _, _}], _, D3} | _]) ->
     {true, D3};
 check_load_code(_) ->
     false.
