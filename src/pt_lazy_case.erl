@@ -197,6 +197,16 @@ replace_case([{'case', V1, {tuple, _, [HeadAstTuple | TailAstTuple]}, ListASTCla
     end;
 replace_case({'case', V1, {tuple, _, [HeadAstTuple | TailAstTuple]}, ListASTClause}, File) ->
     parse_tuple(HeadAstTuple, ListASTClause, TailAstTuple, V1, File);
+replace_case([{'case', V1, _, _}] = Data, File) ->
+    {ok, Cwd} = file:get_cwd(),
+    FullFile = filename:join(Cwd, File),
+    io:format("~ts:~p: Warning: lazy_case did not work ~n", [FullFile, V1]),
+    Data;
+replace_case({'case', V1, _, _} = Data, File) ->
+    {ok, Cwd} = file:get_cwd(),
+    FullFile = filename:join(Cwd, File),
+    io:format("~ts:~p: Warning: lazy_case did not work ~n", [FullFile, V1]),
+    Data;
 replace_case(Data, _) ->
     Data.
 
