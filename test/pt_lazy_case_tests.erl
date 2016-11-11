@@ -19,7 +19,10 @@ pt_lazy_case_test_() ->
         ?_test(ok = lazy_case_test3()),
         ?_test(ok = lazy_case_test4()),
         ?_test(ok = lazy_case_test5()),
-        ?_test(ok = lazy_case_test6())
+        ?_test(ok = lazy_case_test6()),
+        ?_test(ok = lazy_case_test7()),
+        ?_test(ok = lazy_case_test8()),
+        ?_test(ok = lazy_case_test9())
     ].
 
 lazy_case_test1() ->
@@ -109,3 +112,29 @@ lazy_case_test6() ->
            {_V, _} -> ?assert(false)
         end,
     X.
+
+lazy_case_test7() ->
+    '@lazy_case',
+    X =
+        case {[], ok} of
+           {[], _V} -> _V;
+           {_V, _} -> ?assert(false)
+        end,
+    X.
+
+lazy_case_test8() ->
+    '@lazy_case',
+   X =
+       case {[], [], ok} of
+          {_A, _V1, V2} -> V2;
+          {_V, [], _} -> false
+       end,
+   X.
+
+lazy_case_test9() ->
+    '@lazy_case',
+    case {[], [], ok} of
+        {_A, _V1, V2} -> V2;
+        {_V, [], _} -> false
+    end,
+    ok.

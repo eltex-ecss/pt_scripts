@@ -83,13 +83,16 @@ replace_line_ast(V1) ->
 parser_case([{atom, Line, '@lazy_case'} | TailAST], File) ->
     case TailAST of
         [{match, L, V, {'case', _, _, _} = CaseAST} | TailAST2] ->
-            [{match, L, V, replace_case(parser_case(CaseAST, File), File)} | TailAST2];
+            NewData = create_case(replace_case(parser_case(CaseAST, File), File), L),
+            [{match, L, V, NewData} | TailAST2];
         {match, L, V, {'case', _, _, _} = CaseAST} ->
-            {match, L, V, replace_case(parser_case(CaseAST, File), File)};
-        [{'case', _, _, _} | _] ->
-            replace_case(parser_case(TailAST, File), File);
-        {'case', _, _, _} ->
-            replace_case(parser_case(TailAST, File), File);
+            NewData = create_case(replace_case(parser_case(CaseAST, File), File), L),
+            {match, L, V, NewData};
+        [{'case', L, _, _} = CaseAST | TailAST2] ->
+            NewData = create_case(replace_case(parser_case(CaseAST, File), File), L),
+            [NewData | TailAST2];
+        {'case', L, _, _} = CaseAST ->
+            create_case(replace_case(parser_case(CaseAST, File), File), L);
         _ ->
             {ok, Cwd} = file:get_cwd(),
             FullFile = filename:join(Cwd, File),
@@ -116,6 +119,11 @@ parser_case([V1 | TailAST], File) ->
     [V1 | parser_case(TailAST, File)];
 parser_case(Data, _) ->
     Data.
+
+create_case({'case', _, _, _} = Data, _) ->
+    Data;
+create_case(Data, L) ->
+    {'case', L, {nil, L}, [{clause, L, [{nil, L}], [], Data}]}.
 
 parse_clause([{clause, V1, [{var, V2, D1}], Guard, _} = Data | TailASTClause], OtherAST, AccGuard) ->
     case {TailASTClause, Guard} of
@@ -164,7 +172,7 @@ parse_clause(_, Acc, OtherAST, _, _) ->
 parse_tuple(HeadAstTuple, ListASTClause, [], V1, _) ->
     NewListASTClause = parse_clause(ListASTClause, [], []),
     OffRepeateASTClause = delete_repeate(NewListASTClause, []),
-    case check_load_code(OffRepeateASTClause) of
+    case check_load_code(OffRepeateASTClause, HeadAstTuple) of
         false ->
             {'case', V1, HeadAstTuple, OffRepeateASTClause};
         {true, Data} ->
@@ -179,7 +187,7 @@ parse_tuple(HeadAstTuple, ListASTClause, TailAstTuple, V1, File) ->
             OffRepeateASTClause = delete_repeate(create_new_case(NewListASTClause, CountElems, TailAstTuple, [], V1), []),
             NewCase = {'case', V1, HeadAstTuple, OffRepeateASTClause},
             ChangeCase = parser_case(NewCase, File),
-            case check_load_code(ChangeCase) of
+            case check_load_code(ChangeCase, HeadAstTuple) of
                 false ->
                     ChangeCase;
                 {true, Data} ->
@@ -297,14 +305,17 @@ check_guard(Guard, [Guard | _], _) ->
 check_guard(Guard, [HeadGuard | TailGuard], Acc) ->
     check_guard(Guard, TailGuard, [HeadGuard | Acc]);
 check_guard(Guard, _, Acc) ->
-
     {true, [Guard | Acc]}.
 
-check_load_code({'case', _, _, [{clause, _, [{var, _, _}], _, D3} | _]}) ->
+check_load_code({'case', _, _, [{clause, _, [{var, _, '_'}], _, D3} | _]}, _HeadAstTuple) ->
     {true, D3};
-check_load_code([{clause, _, [{var, _, _}], _, D3} | _]) ->
+check_load_code([{clause, _, [{var, _, '_'}], _, D3} | _], _HeadAstTuple) ->
     {true, D3};
-check_load_code(_) ->
+check_load_code({'case', _, _, [{clause, _, [{var, Line, Var}], _, D3} | _]}, HeadAstTuple) ->
+    {true, [{match, Line, {var, Line, Var}, HeadAstTuple} | D3]};
+check_load_code([{clause, _, [{var, Line, Var}], _, D3} | _], HeadAstTuple) ->
+    {true, [{match, Line, {var, Line, Var}, HeadAstTuple} | D3]};
+check_load_code(_, _) ->
     false.
 
 delete_repeate([{clause, _, Data1, Guard1, _} = HeadASTClause | TailASTClause], Acc) ->
