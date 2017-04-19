@@ -57,7 +57,7 @@ add_build_info_fun(AST, FunName, Options) ->
                 AST
         end,
     Version1 =
-        [{build_date, os:timestamp()}],
+        [{build_date, erlang:timestamp()}],
 
     Version2 =
         case run_command(?WHOAMI) of
